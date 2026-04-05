@@ -318,3 +318,77 @@ call show_best_seller();
 call check_manufacturer_products('Sports Co');
 call show_top_manufacturer();
 call delete_customers_after_date('2000-02-20');
+
+
+CREATE OR REPLACE FUNCTION check_product_exists()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    IF EXISTS (
+        SELECT 1 FROM products
+        WHERE product_name = NEW.product_name
+          AND category = NEW.category
+          AND manufacturer = NEW.manufacturer
+          AND cost_price = NEW.cost_price
+          AND selling_price = NEW.selling_price
+    ) THEN
+        UPDATE products
+        SET quantity_in_stock = quantity_in_stock + NEW.quantity_in_stock
+        WHERE product_name = NEW.product_name
+          AND category = NEW.category
+          AND manufacturer = NEW.manufacturer
+          AND cost_price = NEW.cost_price
+          AND selling_price = NEW.selling_price;
+
+        RETURN NULL; 
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_check_product_exists
+BEFORE INSERT ON products
+FOR EACH ROW
+EXECUTE FUNCTION check_product_exists();
+
+
+
+
+CREATE OR REPLACE FUNCTION archive_employee()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO employee_archive(full_name, position, hire_date, gender, salary, date_archived)
+    VALUES (OLD.full_name, OLD.position, OLD.hire_date, OLD.gender, OLD.salary, NOW());
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_archive_employee
+AFTER DELETE ON employees
+FOR EACH ROW
+EXECUTE FUNCTION archive_employee();
+
+
+
+CREATE OR REPLACE FUNCTION limit_sellers()
+RETURNS TRIGGER AS $$
+DECLARE
+    seller_count INT;
+BEGIN
+    IF NEW.position = 'seller' THEN
+        SELECT COUNT(*) INTO seller_count FROM employees WHERE position = 'seller';
+        IF seller_count >= 6 THEN
+            RAISE EXCEPTION 'Cannot add more than 6 sellers';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_limit_sellers
+BEFORE INSERT ON employees
+FOR EACH ROW
+EXECUTE FUNCTION limit_sellers();
