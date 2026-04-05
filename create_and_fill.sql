@@ -222,3 +222,99 @@ select * from employees_with_45_year_anniversary();
 
 
 
+
+
+CREATE OR REPLACE PROCEDURE show_all_products()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT * FROM products;
+END;
+
+
+$$;
+CREATE OR REPLACE PROCEDURE show_products_by_category(p_category TEXT)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT * FROM products WHERE category = p_category;
+END;
+$$;
+
+
+ALTER TABLE customers ADD COLUMN registration_date DATE;
+
+CREATE OR REPLACE PROCEDURE show_top3_oldest_customers()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT * FROM customers ORDER BY id ASC LIMIT 3;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE show_best_seller()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT e.id, e.full_name, SUM(s.selling_price * s.quantity_sold) AS total_sales
+    FROM employees e
+    JOIN sales s ON e.id = s.seller_id
+    GROUP BY e.id, e.full_name
+    ORDER BY total_sales DESC
+    LIMIT 1;
+END;
+
+
+$$;
+CREATE OR REPLACE PROCEDURE check_manufacturer_products(p_manufacturer TEXT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    cnt INT;
+BEGIN
+    SELECT COUNT(*) INTO cnt
+    FROM products
+    WHERE manufacturer = p_manufacturer AND quantity_in_stock > 0;
+
+    IF cnt > 0 THEN
+        RAISE NOTICE 'yes';
+    ELSE
+        RAISE NOTICE 'no';
+    END IF;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE show_top_manufacturer()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    SELECT p.manufacturer, SUM(s.selling_price * s.quantity_sold) AS total_sales
+    FROM products p
+    JOIN sales s ON p.id = s.product_id
+    GROUP BY p.manufacturer
+    ORDER BY total_sales DESC
+    LIMIT 1;
+END;
+$$;
+
+
+CREATE OR REPLACE PROCEDURE delete_customers_after_date(p_date DATE)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    deleted_count INT;
+BEGIN
+    DELETE FROM customers WHERE registration_date > p_date;
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    RAISE NOTICE 'Deleted % customers', deleted_count;
+END;
+$$;
+
+
+call show_all_products();
+call show_products_by_category('Audio');
+call show_top3_oldest_customers();
+call show_best_seller();
+call check_manufacturer_products('Sports Co');
+call show_top_manufacturer();
+call delete_customers_after_date('2000-02-20');
